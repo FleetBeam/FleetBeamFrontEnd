@@ -57,7 +57,7 @@ export interface Damage {
   id: number;
   date: string;        // ISO date string
   time: string;        // "HH:mm:ss" string
-  comment: string | null;
+  comment: string;
   position: string;
   left_percentage: string;
   top_percentage: string;
@@ -67,3 +67,19 @@ export interface Damage {
   subcategory: Subcategory | null;
   repair: Repair | null;
 }
+
+
+export type DamageDTO = {
+  vehicleId: number;
+  date: string;         // or Date if using JS Date objects
+  time: string;         // or Date if using time parsing (e.g. dayjs)
+  categoryId: number;
+  subcategoryId: number;
+  userId: number;
+  comment: string;
+  position: string;
+  leftPercentage: string;
+  topPercentage: string;
+  repairId: number | null;
+};
+

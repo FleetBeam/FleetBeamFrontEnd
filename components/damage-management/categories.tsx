@@ -117,8 +117,8 @@ export const subcategories = [
 ];
 
 type UseCategoriesReturn = {
-  categories: Category[];
-  subcategories: Subcategory[];
+  fetchedCategories: Category[];
+  fetchedSubcategories: Subcategory[];
 };
 
 export function useCategories(): UseCategoriesReturn {

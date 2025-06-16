@@ -10,54 +10,58 @@ import {
   CardContent,
   TextField,
 } from "@mui/material";
-import DamageProps from "./MainGrid";
-import { useCategories, Category, Subcategory } from "./categories";
+import { DamageMap, DamageProps } from "./MainGrid";
 import CategoryTree from "./CategoryTree";
 import dayjs from 'dayjs';
+import utc from "dayjs/plugin/utc";
+import { DamageDTO } from "@/types/entities";
+import { useCreateDamage } from "hooks/damage-management/useCreateDamage";
+import { useCategories } from "hooks/damage-management/useCategories";
+import { useSubcategories } from "hooks/damage-management/useSubcategories";
+
+dayjs.extend(utc);
 
 export type DamageDialogProps = {
   damageProps: DamageProps;
   open: boolean;
-  setRegisteredDamages: () => void;
-  setNewDamages: () => void;
   onClose: () => void;
+  selectedVehicleId: number | "";
 };
 
 export default function DamageDialog({
   open,
   damageProps,
-  setRegisteredDamages,
-  setNewDamages,
   onClose,
+  selectedVehicleId
 }: DamageDialogProps) {
-  const { fetchedCategories, fetchedSubcategories } = useCategories();
+  console.log("vehicleId Changed", selectedVehicleId)
+  const { categories  } = useCategories();
+  const { subcategories } = useSubcategories();
+  const { mutate: createDamage, isPending, isSuccess, isError } = useCreateDamage();
+
   const [text, setText] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const counterRef = useRef(50); 
 
   const handleConfirm = () => {
-    const categories = selectedId?.split('.');
+    const selectedCategories = selectedId?.split('.');
     const now = dayjs(new Date());
-    counterRef.current += 1;
-    const newDamageProps: DamageProps = {
-      id: counterRef.current,
-      date: now.format("DD.MM.YYYY"),
-      time: now.format("HH:mm"),
-      category: fetchedCategories.find((category: Category) => category.id == categories[0]).title,
-      reason: fetchedSubcategories.find((subcategory: Subcategory) => subcategory.id == categories[1]).title,
-      user: "Destan Sokoloff",
-      persnumber: 1432423,
+    const nowDate = dayjs().utc().startOf("day");
+    const newDamageDTO: DamageDTO = {
+      vehicleId: Number(selectedVehicleId),
+      date: nowDate.toISOString(),
+      time: now.format("HH:mm:ss"),
+      categoryId: Number(selectedCategories ? selectedCategories[0] : 1),
+      subcategoryId: Number(selectedCategories ? selectedCategories[1] : 1),
+      userId: 0,
       comment: text,
       position: damageProps.position,
-      left: damageProps.left,
-      top: damageProps.top,
+      topPercentage: String(damageProps.top),
+      leftPercentage: String(damageProps.left),
+      repairId: null
     };
 
-    setRegisteredDamages((prev) => ({
-      ...prev,
-      [damageProps.position]: [...(prev[damageProps.position] || []), newDamageProps],
-    }));
-    setNewDamages((prev) => [...prev, newDamageProps]);
+    createDamage(newDamageDTO);
+
     onClose();
   };
 
@@ -76,10 +80,10 @@ export default function DamageDialog({
       <DialogTitle>Schadensursache</DialogTitle>
       <DialogContent>
         <CategoryTree
-          fetchedCategories={fetchedCategories}
-          fetchedSubcategories={fetchedSubcategories}
+          fetchedCategories={categories}
+          fetchedSubcategories={subcategories}
           selectedId={selectedId}
-          onSelect={(id: string) => setSelectedId(id)}
+          onSelect={(id: number | null) => setSelectedId(String(id))}
         />
         <DialogTitle>Bemerkung</DialogTitle>
 
@@ -109,3 +113,4 @@ export default function DamageDialog({
     </Dialog>
   );
 }
+

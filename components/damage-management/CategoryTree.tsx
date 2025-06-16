@@ -22,7 +22,7 @@ import { TreeItemIcon } from "@mui/x-tree-view/TreeItemIcon";
 import { TreeItemProvider } from "@mui/x-tree-view/TreeItemProvider";
 import { TreeViewBaseItem } from "@mui/x-tree-view/models";
 import { useTheme } from "@mui/material/styles";
-import { useCategories, Category, Subcategory } from "./categories";
+import { Category, Subcategory } from "@/types/entities";
 
 type Color = "blue" | "green";
 
@@ -136,7 +136,7 @@ interface CustomTreeItemProps
 
 const CustomTreeItem = React.forwardRef(function CustomTreeItem(
   props: CustomTreeItemProps,
-  ref: React.Ref<HTMLLIElement>
+  ref: React.Ref<HTMLLIElement> 
 ) {
   const { id, itemId, label, disabled, children, ...other } = props;
 
@@ -150,7 +150,7 @@ const CustomTreeItem = React.forwardRef(function CustomTreeItem(
     publicAPI,
   } = useTreeItem({ id, itemId, children, label, disabled, rootRef: ref });
 
-  const item = publicAPI.getItem(itemId);
+  const item = (publicAPI as any).getItem(itemId);
   const color = item?.color;
   return (
     <TreeItemProvider id={id} itemId={itemId}>
@@ -184,8 +184,8 @@ const CustomTreeItem = React.forwardRef(function CustomTreeItem(
 });
 
 type CategoryTreeProps = {
-  fetchedCategories: Category[];
-  fetchedSubcategories: Subcategory[];
+  fetchedCategories: Category[] | undefined;
+  fetchedSubcategories: Subcategory[] | undefined;
   selectedId: string | null;
   onSelect: (id: number) => void;
 };
@@ -197,14 +197,14 @@ export default function CategoryTree({
   onSelect,
 }: CategoryTreeProps) {
 
-  const handleSelect = (event: React.SyntheticEvent, ids: string) => {
-    onSelect(ids);
+  const handleSelect = (event: React.SyntheticEvent<Element, Event> | null, ids: string | null) => {
+    onSelect(Number(ids));
   };
 
   const items: TreeViewBaseItem<ExtendedTreeItemProps>[] =
     fetchedCategories.map((category: Category) => {
       const categoryItem: TreeViewBaseItem<ExtendedTreeItemProps> = {
-        id: category.id,
+        id: String(category.id),
         label: category.title,
         color: "blue",
         children: fetchedSubcategories
@@ -231,7 +231,7 @@ export default function CategoryTree({
       <CardContent>
         <RichTreeView
           items={items}
-          selectedItems={selectedId ? [selectedId] : []}
+          selectedItems={selectedId}
           onSelectedItemsChange={handleSelect}
           aria-label="pages"
           sx={{

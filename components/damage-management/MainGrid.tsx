@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
@@ -11,6 +11,20 @@ import Chip from "@mui/material/Chip";
 import CustomDataGrid from "./CustomDataGrid";
 import CloseIcon from "@mui/icons-material/Close";
 import DamageDialog from "./DamageDialog";
+import {
+  Backdrop,
+  CircularProgress,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
+  SvgIcon,
+  SvgIconProps,
+  useColorScheme,
+  useTheme,
+} from "@mui/material";
+
 import { damageRows, repairedRows, plannedRepairRows } from "./rows";
 import {
   damageColumns,
@@ -18,34 +32,36 @@ import {
   plannedRepairColumns,
 } from "./columns";
 import { useDamagesByVehicle } from "hooks/damage-management/useDamagesByVehicle";
+import { GridColDef, GridRowsProp, GridValidRowModel } from "@mui/x-data-grid";
+import { SxProps, Theme } from "@mui/material";
+import { useAllVehicles } from "hooks/damage-management/useAllVehicles";
+import { Damage } from "@/types/entities";
+import dayjs from "dayjs";
 
 type VisualName = keyof typeof visualVectors;
-interface BusVisualProps extends SvgProps {
+export interface BusVisualProps extends SvgIconProps {
   name: VisualName;
+  sx?: SxProps<Theme>;
+  svgColor: string;
 }
 
 const busModel = "Bus";
 const BusVisuals = ["Front", "Back", "Right", "Left", "Top"];
-const tableCategories = {
-  "Aktuelle Schäden": { rows: damageRows, columns: damageColumns },
-  "Reparierte Schäden": { rows: repairedRows, columns: repairedColumns },
-  Reparaturplanung: { rows: plannedRepairRows, columns: plannedRepairColumns },
-};
 
 function BusVisual({ name, ...props }: BusVisualProps) {
   const BusVisualComponent = visualVectors[name];
 
   if (!BusVisualComponent) return <span>Icon not found</span>;
 
-  return <BusVisualComponent {...props} />;
+  return <BusVisualComponent name={""} {...props} />;
 }
 
 export type DamageProps = {
   id: number;
   date: string; // format: "DD.MM.YYYY"
   time: string; // format: "HH:mm"
-  category: string;
-  reason: string;
+  category: string | undefined;
+  reason: string | undefined;
   user: string;
   persnumber: number;
   comment: string;
@@ -54,35 +70,97 @@ export type DamageProps = {
   top: number;
 };
 
-type DamageMap = { [key: string]: DamageProps[] };
+export type DamageMap = { [key: string]: DamageProps[] };
+
+type TableCategory = {
+  rows: GridRowsProp;
+  columns: GridColDef[];
+};
+
+type TableCategories = {
+  [key: string]: TableCategory;
+};
 
 export default function MainGrid() {
-  const [selectedTable, setSelectedTable] = useState("Aktuelle Schäden");
+  const [selectedTable, setSelectedTable] =
+    useState<keyof typeof tableCategories>("Aktuelle Schäden");
   const [selectedVisual, setSelectedVisual] = useState("Front");
-  const [registeredDamages, setRegisteredDamages] = useState<DamageMap>({});
   const [open, setOpen] = useState(false);
   const [singleView, setSingleView] = useState(false);
   const [newDamages, setNewDamages] = useState<DamageProps[]>([]);
-  const [currentDamageProps, setDamageProps] = useState<DamageProps>({});
-  const { damages, loading, error } = useDamagesByVehicle(1);
-  console.log(damages)
+  const [currentDamageProps, setDamageProps] = useState<
+    Partial<DamageProps | GridValidRowModel | undefined>
+  >({});
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | "">("");
+  const { vehicles, vehiclesLoading, vehiclesError } = useAllVehicles();
+  const { damages, isLoading, error } = useDamagesByVehicle(
+    selectedVehicleId || 0
+  );
 
-  const handleOpen = () => setOpen(true);
+  const { colorScheme } = useColorScheme();
+
+  const [tableCategories, setTableCategories] = useState<TableCategories>({
+    "Aktuelle Schäden": { rows: [], columns: damageColumns },
+    "Reparierte Schäden": { rows: [], columns: repairedColumns },
+    Reparaturplanung: { rows: [], columns: plannedRepairColumns },
+  });
+  useEffect(() => {
+    if (!damages) return;
+
+    const aktuelleSchaeden = damages.filter(
+      (damage: Damage) => damage.repair == null
+    );
+    const reparierteSchaeden = damages.filter((damage: Damage) =>
+      damage.repair
+        ? dayjs(
+            damage?.repair.end_date.split("T")[0] +
+              "T" +
+              damage?.repair.end_time
+          ).isBefore(dayjs())
+        : false
+    );
+    const reparaturplanung = damages.filter((damage: Damage) =>
+      damage.repair
+        ? dayjs(
+            damage?.repair.end_date.split("T")[0] +
+              "T" +
+              damage?.repair.end_time
+          ).isAfter(dayjs())
+        : false
+    );
+
+    setTableCategories({
+      "Aktuelle Schäden": {
+        rows: aktuelleSchaeden as GridRowsProp,
+        columns: damageColumns,
+      },
+      "Reparierte Schäden": {
+        rows: reparierteSchaeden,
+        columns: repairedColumns,
+      },
+      Reparaturplanung: {
+        rows: reparaturplanung,
+        columns: plannedRepairColumns,
+      },
+    });
+  }, [damages]);
+
   const handleClose = () => setOpen(false);
 
-  const handleDamageClick = (
-    e: React.MouseEvent<HTMLDivElement>,
-    id: number
-  ) => {
-    e.preventDefault(); // Stops default browser behavior
+  const handleDamageClick = (e: React.MouseEvent<HTMLElement>, id: number) => {
+    e.preventDefault();
     e.stopPropagation();
     const clickedDamageProps = [
-      ...tableCategories[selectedTable].rows,
+      ...(tableCategories[selectedTable].rows as DamageProps[]),
       ...newDamages,
     ].find((entry: DamageProps) => entry.id === id);
 
     setSingleView(!singleView);
     setDamageProps(clickedDamageProps);
+  };
+
+  const handleVehicleChange = (event: SelectChangeEvent<number>) => {
+    setSelectedVehicleId(event.target.value as number);
   };
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>, id: string) => {
@@ -107,23 +185,37 @@ export default function MainGrid() {
     };
 
     setDamageProps(newDamageProps);
-
-    /*setRegisteredDamages((prev) => ({
-      ...prev,
-      [id]: [...(prev[id] || []), newPoint],
-    }));*/
-
     setOpen(true);
-
-    console.log(registeredDamages);
   };
 
   return (
     <Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
+      <Backdrop open={isLoading} style={{ zIndex: 1300, color: "#fff" }}>
+        <CircularProgress color="inherit" />
+      </Backdrop>
       {/* cards */}
       <Typography component="h2" variant="h6" sx={{ mb: 2 }}>
         Schaden verwalten
       </Typography>
+      <FormControl sx={{ mb: 2, width: 300 }}>
+        <InputLabel id="vehicle-select-label">Fahrzeug auswählen</InputLabel>
+        {vehiclesLoading ? (
+          <CircularProgress size={24} />
+        ) : (
+          <Select
+            labelId="vehicle-select-label"
+            value={selectedVehicleId}
+            onChange={handleVehicleChange}
+            label="Fahrzeug auswählen"
+          >
+            {vehicles?.map((vehicle) => (
+              <MenuItem key={vehicle.id} value={vehicle.id}>
+                {vehicle.external_id}
+              </MenuItem>
+            ))}
+          </Select>
+        )}
+      </FormControl>
       <Grid
         container
         spacing={2}
@@ -148,7 +240,8 @@ export default function MainGrid() {
               <CardContent>
                 <BusVisual
                   name={busModel + name}
-                  sx={{ width: "100%", height: "50px" }}
+                  sx={{ width: "100%", height: "50px"}}
+                  svgColor={ (colorScheme == "dark") ? "white" : "black" }
                 />
               </CardContent>
             </Card>
@@ -171,34 +264,39 @@ export default function MainGrid() {
         >
           <CardContent>
             <>
-              {registeredDamages.hasOwnProperty(selectedVisual)
-                ? registeredDamages[selectedVisual].map((entry, index) => (
-                    <IconButton
-                      onClick={(e) => handleDamageClick(e, entry.id)}
-                      sx={{
-                        position: "absolute",
-                        left: `calc(${entry.left}% - 15px)`,
-                        top: `calc(${entry.top}% - 15px)`,
-                        borderRadius: "100%",
-                        border: "0px",
-                        backgroundColor: "transparent",
-                        "&:hover": {
-                          backgroundColor: "var(--IconButton-hoverBg)",
-                        },
-                      }}
-                    >
-                      <CloseIcon
-                        key={index}
-                        fontSize="large"
-                        style={{ fill: "red" }}
-                      />
-                    </IconButton>
-                  ))
+              {tableCategories[selectedTable].rows.length > 0
+                ? tableCategories[selectedTable].rows
+                    .filter((entry) => entry.position == selectedVisual)
+                    .map((entry, index) => {
+                      return (
+                        <IconButton
+                          onClick={(e) => handleDamageClick(e, entry.id)}
+                          sx={{
+                            position: "absolute",
+                            left: `calc(${entry.left_percentage}% - 15px)`,
+                            top: `calc(${entry.top_percentage}% - 15px)`,
+                            borderRadius: "100%",
+                            border: "0px",
+                            backgroundColor: "transparent",
+                            "&:hover": {
+                              backgroundColor: "var(--IconButton-hoverBg)",
+                            },
+                          }}
+                        >
+                          <CloseIcon
+                            key={index}
+                            fontSize="large"
+                            style={{ fill: "red" }}
+                          />
+                        </IconButton>
+                      );
+                    })
                 : null}
             </>
             <BusVisual
               name={busModel + selectedVisual}
               sx={{ width: "100%", height: "100%" }}
+              svgColor={ (colorScheme == "dark") ? "white" : "black" }
             />
           </CardContent>
         </Card>
@@ -212,16 +310,17 @@ export default function MainGrid() {
         columns={3}
         sx={{ width: "max-content", mb: (theme) => theme.spacing(2), gap: 2 }}
       >
-        {Object.keys(tableCategories).map((name, index) => (
+        {(
+          Object.keys(tableCategories) as Array<keyof typeof tableCategories>
+        ).map((name, index) => (
           <Grid size={{ xs: 12, sm: 6, lg: 1 }}>
             <Chip
-              size="large"
+              size="medium"
               label={`${name} ( ${
                 name != "Aktuelle Schäden"
                   ? tableCategories[name].rows.length
                   : tableCategories[name].rows.length + newDamages.length
               } )`}
-              color=""
               onClick={() => setSelectedTable(name)}
               sx={{
                 width: "250px",
@@ -242,10 +341,15 @@ export default function MainGrid() {
             columns={tableCategories[selectedTable].columns}
             rows={
               singleView
-                ? [currentDamageProps]
-                : selectedTable != "Aktuelle Schäden"
+                ? currentDamageProps
+                  ? [currentDamageProps as GridValidRowModel]
+                  : []
+                : selectedTable !== "Aktuelle Schäden"
                 ? tableCategories[selectedTable].rows
-                : [...tableCategories[selectedTable].rows, ...newDamages]
+                : [
+                    ...tableCategories[selectedTable].rows,
+                    ...(newDamages as GridValidRowModel[]),
+                  ]
             }
           />
         </Grid>
@@ -253,10 +357,9 @@ export default function MainGrid() {
 
       <DamageDialog
         open={open}
-        setRegisteredDamages={setRegisteredDamages}
-        damageProps={currentDamageProps}
+        damageProps={currentDamageProps as DamageProps}
         onClose={handleClose}
-        setNewDamages={setNewDamages}
+        selectedVehicleId={selectedVehicleId}
       />
 
       <Grid container spacing={2} columns={12}>
