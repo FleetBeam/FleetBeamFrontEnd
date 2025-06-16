@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } 
 import  Cookies  from "js-cookie";
 
 const api: AxiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"/*"https://fleetbeambackend.onrender.com"*/,
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || /*"http://localhost:8080"*/"https://fleetbeambackend.onrender.com",
   // withCredentials: true, // uncomment if your API requires sending cookies on cross-origin requests
 });
 
