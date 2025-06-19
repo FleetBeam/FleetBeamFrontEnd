@@ -10,7 +10,7 @@ export async function login(username: string, password: string): Promise<string>
     const response = await api.post<LoginResponse>("/auth/login", { username, password });
     const token = response.data.token;
 
-    Cookies.set("jwt", token, { expires: 7, secure: false, sameSite: "None" });
+    Cookies.set("jwt", token, { expires: 7, secure: true, sameSite: "Lax" });
 
     return token;
   } catch (error) {
